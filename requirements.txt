@@ -1,0 +1,14 @@
+# ============================================================
+# DIPENDENZE - Easy RAG
+# ============================================================
+# Installa tutto con:  pip install -r requirements.txt
+# ============================================================
+
+# Client Python per comunicare con Ollama (il server locale per i modelli AI)
+ollama
+
+# Libreria per leggere ed estrarre il testo dai file PDF
+PyMuPDF
+
+# Libreria per il calcolo matematico sui vettori (usata per la similarità coseno)
+numpy

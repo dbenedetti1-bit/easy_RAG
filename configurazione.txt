@@ -1,0 +1,123 @@
+# ============================================================
+#  CONFIGURAZIONE - Easy RAG
+# ============================================================
+#  Questo file contiene i parametri e i prompt del sistema.
+#  Puoi modificarli liberamente per sperimentare!
+#
+#  FORMATO:
+#  - Le righe che iniziano con # sono commenti (vengono ignorate)
+#  - I parametri sono nel formato:  NOME = valore
+#  - I prompt iniziano con [NOME_PROMPT] e finiscono alla sezione successiva
+# ============================================================
+
+
+# ------------------------------------------------------------
+#  MODELLI
+# ------------------------------------------------------------
+
+# Modello di linguaggio per generare le risposte.
+# "mistral" è un buon modello da 7 miliardi di parametri, abbastanza
+# leggero da girare sulla maggior parte dei computer (~4 GB di RAM per il modello).
+# Alternative più leggere: llama3.2:3b (3 miliardi, ~2 GB)
+MODELLO_LLM = mistral
+
+# Modello per creare gli embedding (le rappresentazioni numeriche del testo).
+# "nomic-embed-text" è piccolo e specializzato per questo compito.
+MODELLO_EMBEDDING = nomic-embed-text
+
+
+# ------------------------------------------------------------
+#  PARAMETRI DI GENERAZIONE
+# ------------------------------------------------------------
+
+# TEMPERATURE (valore da 0.0 a 2.0)
+# Controlla la "creatività" delle risposte:
+#   0.0 = Risposte molto prevedibili e ripetitive (sempre la stessa risposta)
+#   0.5 = Buon equilibrio tra coerenza e varietà (consigliato per RAG)
+#   1.0 = Risposte più varie e creative
+#   2.0 = Risposte molto casuali e spesso incoerenti
+# Per una RAG, valori bassi (0.1-0.5) funzionano meglio perché vogliamo
+# risposte fedeli ai documenti, non invenzioni creative.
+TEMPERATURE = 0.3
+
+# TOP_K (numero intero, es. 40)
+# Quando il modello deve scegliere la prossima parola, considera solo
+# le TOP_K parole più probabili. È come chiedere a qualcuno di scegliere
+# un ristorante: con top_k=3 sceglie tra i 3 migliori, con top_k=100
+# considera anche opzioni improbabili.
+#   Valori bassi (10-20) = risposte più focalizzate
+#   Valori alti (50-100) = risposte più varie
+TOP_K = 40
+
+# TOP_P (valore da 0.0 a 1.0, detto anche "nucleus sampling")
+# Simile a TOP_K, ma invece di un numero fisso di parole, seleziona
+# le parole che insieme raggiungono una certa probabilità cumulativa.
+# Ad esempio, top_p=0.9 considera le parole che, sommate, coprono il
+# 90% della probabilità. È come dire "considera tutte le opzioni
+# ragionevoli, scarta solo quelle davvero improbabili".
+#   0.5 = solo le parole molto probabili
+#   0.9 = la maggior parte delle parole ragionevoli (consigliato)
+#   1.0 = tutte le parole (nessun filtro)
+TOP_P = 0.9
+
+
+# ------------------------------------------------------------
+#  PARAMETRI DI RICERCA
+# ------------------------------------------------------------
+
+# Quanti "pezzi" di testo recuperare dal database per costruire il contesto.
+# Più pezzi = più informazioni per il modello, ma anche più confusione
+# se i pezzi non sono tutti rilevanti.
+# Consigliato: tra 3 e 5
+NUMERO_RISULTATI = 3
+
+
+# ------------------------------------------------------------
+#  PARAMETRI DI INDICIZZAZIONE (chunking)
+# ------------------------------------------------------------
+
+# Quando un PDF viene processato, il testo viene diviso in "pezzi" (chunk).
+# Questi parametri controllano la dimensione dei pezzi.
+
+# DIMENSIONE_CHUNK (numero di caratteri per pezzo)
+# Pezzi troppo piccoli = manca il contesto, il modello non capisce
+# Pezzi troppo grandi = troppo rumore, il modello si confonde
+# 500-1000 caratteri è un buon compromesso.
+DIMENSIONE_CHUNK = 800
+
+# SOVRAPPOSIZIONE_CHUNK (numero di caratteri di sovrapposizione tra pezzi)
+# I pezzi si "sovrappongono" leggermente, così un concetto che cade
+# a cavallo tra due pezzi non viene perso.
+# Di solito si usa il 10-20% della dimensione del chunk.
+SOVRAPPOSIZIONE_CHUNK = 150
+
+
+# ============================================================
+#  PROMPT
+# ============================================================
+#  I prompt sono le istruzioni che diamo al modello.
+#  Qui sotto trovi il "prompt di sistema" (le regole generali)
+#  e il "template della domanda" (come viene costruita ogni domanda).
+# ============================================================
+
+[PROMPT_DI_SISTEMA]
+Sei un assistente che risponde alle domande basandosi ESCLUSIVAMENTE
+sui documenti forniti nel contesto. Segui queste regole:
+
+1. Rispondi SOLO usando le informazioni presenti nel contesto fornito.
+2. Se il contesto non contiene informazioni sufficienti per rispondere,
+   dillo chiaramente: "Non ho trovato informazioni sufficienti nei documenti."
+3. Rispondi in italiano.
+4. Cita il documento e la pagina da cui prendi le informazioni.
+5. Sii chiaro e conciso.
+
+[TEMPLATE_DOMANDA]
+Ecco il contesto estratto dai documenti:
+
+---CONTESTO---
+{contesto}
+---FINE CONTESTO---
+
+Domanda dell'utente: {domanda}
+
+Rispondi basandoti esclusivamente sul contesto fornito sopra.

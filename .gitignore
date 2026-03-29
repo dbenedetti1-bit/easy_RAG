@@ -1,0 +1,22 @@
+# Virtual environment
+venv/
+
+# File di Python compilati
+__pycache__/
+*.pyc
+
+# File di sistema
+.DS_Store
+Thumbs.db
+
+# Configurazione locale di Claude Code
+.claude/
+
+# I PDF sono esclusi di default (spesso hanno copyright).
+# Rimuovi questa riga se vuoi includere i tuoi documenti nel repo.
+documenti/*.pdf
+
+# Il database vettoriale viene rigenerato dallo script,
+# quindi non serve includerlo nel repository.
+# (Rimuovi queste righe se vuoi condividere un DB già pronto)
+vector_db/*.json
