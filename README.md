@@ -139,3 +139,4 @@ Easy_RAG/
 | `Connection refused` | Ollama non è in esecuzione. Avvialo con `ollama serve` in un altro terminale |
 | `No module named 'ollama'` | L'ambiente virtuale non è attivo. Riattivalo (vedi punto 2 dell'installazione) |
 | Lo script è molto lento | Prova un modello più piccolo: `llama3.2:3b` al posto di `mistral` |
+
