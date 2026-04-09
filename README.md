@@ -32,7 +32,7 @@ La tua domanda  →  Diventa un vettore  →  Confronto con i vettori dei pezzi
 Apri un terminale (Prompt dei comandi o PowerShell su Windows, Terminale su Mac) e scrivi:
 
 ```bash
-git clone https://github.com/TUO_USERNAME/Easy_RAG.git
+git clone https://github.com/dbenedetti1-bit/easy_RAG.git
 cd Easy_RAG
 ```
 
