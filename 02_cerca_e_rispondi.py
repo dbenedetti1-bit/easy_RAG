@@ -10,9 +10,10 @@
  I passaggi per OGNI domanda sono:
  1. Trasformare la domanda in un vettore (embedding)
  2. Confrontare il vettore con quelli nel database (ricerca)
- 3. Prendere i pezzi di testo più simili (contesto)
- 4. Inviare contesto + domanda al modello LLM (generazione)
- 5. Mostrare la risposta all'utente
+ 3. Mostrare i chunk trovati con il loro testo completo
+ 4. Costruire e mostrare il prompt completo (sistema + contesto + domanda)
+ 5. Inviare il prompt al modello LLM (generazione)
+ 6. Mostrare la risposta all'utente
 
  COME USARLO:
  1. Assicurati di aver prima eseguito 01_indicizza_documenti.py
@@ -130,10 +131,68 @@ def costruisci_contesto(risultati_ricerca):
 #  PASSO 4: GENERAZIONE DELLA RISPOSTA
 # =============================================================
 
-def genera_risposta(domanda, contesto, parametri, prompt):
+def costruisci_prompt(domanda, contesto, prompt):
     """
-    Invia la domanda e il contesto al modello LLM e restituisce
+    Costruisce i messaggi da inviare al modello LLM, senza ancora
+    inviare nulla.
+
+    Separare questa funzione da quella che invia la richiesta ci permette
+    di mostrare il prompt completo all'utente PRIMA di inviarlo,
+    rendendo il processo trasparente.
+
+    Il prompt è composto da due parti:
+      - prompt_di_sistema: le "istruzioni generali" al modello
+        (es. "rispondi solo in italiano", "non inventare")
+      - messaggio_utente: il testo che contiene il contesto estratto
+        dal database + la domanda dell'utente
+
+    Parametri:
+        domanda: la domanda dell'utente (stringa)
+        contesto: i chunk di testo trovati nel database (stringa)
+        prompt: dizionario con i template letti da configurazione.txt
+
+    Restituisce:
+        Una lista di messaggi nel formato che Ollama si aspetta
+        (lista di dizionari con "role" e "content")
+    """
+
+    # Recuperiamo i template dalla configurazione
+    prompt_di_sistema = prompt.get(
+        "PROMPT_DI_SISTEMA",
+        "Rispondi basandoti sul contesto fornito."
+    )
+    template_domanda = prompt.get(
+        "TEMPLATE_DOMANDA",
+        "Contesto:\n{contesto}\n\nDomanda: {domanda}"
+    )
+
+    # Sostituiamo i segnaposto {contesto} e {domanda} con i valori reali.
+    # È come compilare un modulo: i "campi vuoti" diventano il contenuto vero.
+    messaggio_utente = template_domanda.replace("{contesto}", contesto)
+    messaggio_utente = messaggio_utente.replace("{domanda}", domanda)
+
+    # Costruiamo la lista dei messaggi nel formato richiesto da Ollama
+    messaggi = [
+        {
+            "role": "system",    # Le regole generali per il modello
+            "content": prompt_di_sistema
+        },
+        {
+            "role": "user",      # La domanda dell'utente con il contesto
+            "content": messaggio_utente
+        }
+    ]
+
+    return messaggi
+
+
+def genera_risposta(messaggi, parametri):
+    """
+    Invia i messaggi già costruiti al modello LLM e restituisce
     la risposta generata.
+
+    Riceve i messaggi già pronti (costruiti da costruisci_prompt),
+    così questa funzione si occupa solo della comunicazione con Ollama.
 
     Qui avviene la "magia" della RAG:
     - Il modello NON risponde dalla sua conoscenza generale
@@ -147,30 +206,11 @@ def genera_risposta(domanda, contesto, parametri, prompt):
     top_k = ottieni_valore_numerico(parametri, "TOP_K", 40)
     top_p = ottieni_valore_numerico(parametri, "TOP_P", 0.9)
 
-    # Leggiamo i prompt dalla configurazione
-    prompt_di_sistema = prompt.get("PROMPT_DI_SISTEMA", "Rispondi basandoti sul contesto fornito.")
-    template_domanda = prompt.get("TEMPLATE_DOMANDA", "Contesto: {contesto}\nDomanda: {domanda}")
-
-    # Costruiamo il messaggio finale sostituendo i segnaposto {contesto} e {domanda}
-    messaggio_utente = template_domanda.replace("{contesto}", contesto)
-    messaggio_utente = messaggio_utente.replace("{domanda}", domanda)
-
-    # Inviamo la richiesta a Ollama con il formato "chat"
-    # Il modello riceve due messaggi:
-    #   - "system": le regole generali (prompt di sistema)
-    #   - "user": la domanda specifica con il contesto
+    # Inviamo la richiesta a Ollama.
+    # Ollama riceve la lista di messaggi e genera una risposta.
     risposta = ollama.chat(
         model=modello,
-        messages=[
-            {
-                "role": "system",
-                "content": prompt_di_sistema
-            },
-            {
-                "role": "user",
-                "content": messaggio_utente
-            }
-        ],
+        messages=messaggi,
         options={
             "temperature": temperature,
             "top_k": top_k,
@@ -178,7 +218,7 @@ def genera_risposta(domanda, contesto, parametri, prompt):
         }
     )
 
-    # La risposta di Ollama contiene vari campi;
+    # La risposta di Ollama è un oggetto complesso;
     # il testo generato si trova in risposta["message"]["content"]
     testo_risposta = risposta["message"]["content"]
 
@@ -259,23 +299,51 @@ def avvia_chat():
             numero_risultati=numero_risultati
         )
 
-        # Mostriamo quali fonti sono state trovate
-        print("  Fonti trovate:")
-        for r in risultati:
+        # Mostriamo i chunk trovati: metadati E testo estratto.
+        # Questo permette di vedere esattamente quale materiale
+        # il modello userà per rispondere.
+        stampa_separatore("=")
+        print("  CHUNK ESTRATTI DAL VECTOR DATABASE")
+        stampa_separatore("=")
+        for i, r in enumerate(risultati):
             chunk = r["chunk"]
             sim = r["similarita"]
-            print(f"    - {chunk['fonte']}, pag. {chunk['pagina']} (rilevanza: {sim:.2f})")
+            print(f"\n  [Chunk {i+1}] Fonte: {chunk['fonte']} — Pagina {chunk['pagina']}")
+            print(f"  Punteggio di similarità coseno: {sim:.4f}")
+            print(f"  Testo:\n")
+            # Indentiamo ogni riga del testo per renderlo visivamente separato
+            for riga in chunk["testo"].splitlines():
+                print(f"    {riga}")
+        stampa_separatore("=")
 
         # PASSO 3: Costruiamo il contesto
         contesto = costruisci_contesto(risultati)
 
-        # PASSO 4: Generiamo la risposta
-        print("  Genero la risposta...\n")
-        risposta = genera_risposta(
+        # PASSO 3b: Costruiamo il prompt e lo mostriamo PRIMA di inviarlo.
+        # Vedere il prompt completo aiuta a capire esattamente cosa
+        # il modello riceve in ingresso per produrre la risposta.
+        messaggi = costruisci_prompt(
             domanda=domanda,
             contesto=contesto,
-            parametri=parametri,
             prompt=prompt
+        )
+
+        stampa_separatore("=")
+        print("  PROMPT COMPLETO INVIATO AL MODELLO LLM")
+        stampa_separatore("=")
+        for msg in messaggi:
+            ruolo = msg["role"].upper()
+            print(f"\n  [{ruolo}]")
+            # Indentiamo ogni riga del contenuto
+            for riga in msg["content"].splitlines():
+                print(f"    {riga}")
+        stampa_separatore("=")
+
+        # PASSO 4: Generiamo la risposta con i messaggi già costruiti
+        print("\n  Genero la risposta...\n")
+        risposta = genera_risposta(
+            messaggi=messaggi,
+            parametri=parametri,
         )
 
         # Mostriamo la risposta
